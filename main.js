@@ -5,19 +5,19 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-let database = []; // sementara
+let database = []; // sementara (RAM)
 
-// TEST
+// ================= TEST =================
 app.get("/", (req, res) => {
   res.send("Server jalan 🚀");
 });
 
-// GET DATA
+// ================= GET DATA =================
 app.get("/api/get", (req, res) => {
   res.json(database);
 });
 
-// SAVE DATA
+// ================= SAVE DATA =================
 app.post("/api/save", (req, res) => {
   const data = req.body;
 
@@ -26,35 +26,64 @@ app.post("/api/save", (req, res) => {
     return res.status(400).json({ error: "Data harus array" });
   }
 
-  // 🔥 flatten (antisipasi nested dari client lama)
+  // 🔥 flatten (antisipasi nested)
   let incoming = data.flat();
 
-  // 🔥 filter data valid saja
+  // 🔥 filter data valid
   incoming = incoming.filter(d => d && typeof d === "object");
 
-  // 🔥 ANTI DUPLIKAT berdasarkan ID
+  // 🔥 ANTI DUPLIKAT pakai ID
   let map = new Map();
 
-  // ambil data lama
+  // data lama
   database.forEach(d => {
     if (d && d.id) {
-      map.set(d.id, d);
+      map.set(String(d.id), d);
     }
   });
 
-  // overwrite dengan data baru
+  // overwrite dari data baru
   incoming.forEach(d => {
     if (d && d.id) {
-      map.set(d.id, d);
+      map.set(String(d.id), d);
     }
   });
 
-  // hasil akhir
   database = Array.from(map.values());
 
-  res.json({ status: "ok", total: database.length });
+  res.json({
+    status: "ok",
+    total: database.length
+  });
 });
 
+// ================= DELETE DATA =================
+app.post("/api/delete", (req, res) => {
+  const ids = req.body;
+
+  if (!Array.isArray(ids)) {
+    return res.status(400).json({ error: "ID harus array" });
+  }
+
+  // 🔥 hapus berdasarkan ID
+  database = database.filter(d => !ids.includes(String(d.id)));
+
+  res.json({
+    status: "deleted",
+    total: database.length
+  });
+});
+
+// ================= CLEAR ALL =================
+app.post("/api/clear", (req, res) => {
+  database = [];
+
+  res.json({
+    status: "cleared"
+  });
+});
+
+// ================= START SERVER =================
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log("Server running on port " + PORT);
