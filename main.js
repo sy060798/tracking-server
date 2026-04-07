@@ -2,8 +2,13 @@ const express = require("express");
 const cors = require("cors");
 
 const app = express();
+
+// ✅ CORS
 app.use(cors());
-app.use(express.json());
+
+// ✅ FIX LIMIT BESAR
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
 let database = []; // sementara (RAM)
 
@@ -21,28 +26,20 @@ app.get("/api/get", (req, res) => {
 app.post("/api/save", (req, res) => {
   const data = req.body;
 
-  // 🔥 pastikan array
   if (!Array.isArray(data)) {
     return res.status(400).json({ error: "Data harus array" });
   }
 
-  // 🔥 flatten (antisipasi nested)
-  let incoming = data.flat();
+  let incoming = data.flat().filter(d => d && typeof d === "object");
 
-  // 🔥 filter data valid
-  incoming = incoming.filter(d => d && typeof d === "object");
-
-  // 🔥 ANTI DUPLIKAT pakai ID
   let map = new Map();
 
-  // data lama
   database.forEach(d => {
     if (d && d.id) {
       map.set(String(d.id), d);
     }
   });
 
-  // overwrite dari data baru
   incoming.forEach(d => {
     if (d && d.id) {
       map.set(String(d.id), d);
@@ -65,7 +62,6 @@ app.post("/api/delete", (req, res) => {
     return res.status(400).json({ error: "ID harus array" });
   }
 
-  // 🔥 hapus berdasarkan ID
   database = database.filter(d => !ids.includes(String(d.id)));
 
   res.json({
@@ -74,16 +70,13 @@ app.post("/api/delete", (req, res) => {
   });
 });
 
-// ================= CLEAR ALL =================
+// ================= CLEAR =================
 app.post("/api/clear", (req, res) => {
   database = [];
-
-  res.json({
-    status: "cleared"
-  });
+  res.json({ status: "cleared" });
 });
 
-// ================= START SERVER =================
+// ================= START =================
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log("Server running on port " + PORT);
