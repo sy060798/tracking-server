@@ -3,101 +3,157 @@ const cors = require("cors");
 
 const app = express();
 
-// ✅ CORS
+// ================= CONFIG =================
 app.use(cors());
-
-// ✅ LIMIT (cukup 10–20mb sudah aman)
 app.use(express.json({ limit: "20mb" }));
 app.use(express.urlencoded({ limit: "20mb", extended: true }));
 
-let database = []; // sementara (RAM)
+// ================= DATABASE (RAM) =================
+let database = {
+  IKR: [],
+  MYREP: []
+};
 
 // ================= TEST =================
 app.get("/", (req, res) => {
-  res.send("Server jalan 🚀");
+  res.send("🚀 Server Tracking Aktif");
 });
 
 // ================= GET DATA =================
 app.get("/api/get", (req, res) => {
-  res.json(database);
+  try {
+    const type = req.query.type || "IKR";
+
+    if (!database[type]) {
+      return res.json([]);
+    }
+
+    res.json(database[type]);
+
+  } catch (err) {
+    console.error("GET ERROR:", err);
+    res.status(500).json({ error: "Gagal ambil data" });
+  }
 });
 
 // ================= SAVE DATA =================
 app.post("/api/save", (req, res) => {
   try {
-    const data = req.body;
+    let { type, data } = req.body;
 
-    if (!Array.isArray(data)) {
-      return res.status(400).json({ error: "Data harus array" });
+    if (!type || !Array.isArray(data)) {
+      return res.status(400).json({
+        error: "Format harus { type:'IKR', data:[] }"
+      });
     }
 
-    let incoming = data.flat().filter(d => d && typeof d === "object");
+    if (!database[type]) {
+      database[type] = [];
+    }
 
     let map = new Map();
 
-    database.forEach(d => {
+    // ambil data lama
+    database[type].forEach(d => {
       if (d && d.id) {
         map.set(String(d.id), d);
       }
     });
 
-    incoming.forEach(d => {
-      if (d && d.id) {
-        map.set(String(d.id), d);
+    // merge data baru
+    data.forEach(d => {
+      if (!d.id) {
+        d.id = Date.now() + Math.random(); // 🔥 auto id
       }
+      map.set(String(d.id), d);
     });
 
-    database = Array.from(map.values());
+    database[type] = Array.from(map.values());
 
-    console.log("TOTAL DATA:", database.length); // 🔥 log
+    console.log(`✅ ${type} TOTAL:`, database[type].length);
 
     res.json({
       status: "ok",
-      total: database.length
+      type: type,
+      total: database[type].length
     });
 
   } catch (err) {
-    console.error("ERROR SAVE:", err);
-    res.status(500).json({ error: "Server error saat save" });
+    console.error("SAVE ERROR:", err);
+    res.status(500).json({ error: "Gagal save data" });
   }
 });
 
-// ================= DELETE DATA =================
+// ================= DELETE =================
 app.post("/api/delete", (req, res) => {
   try {
-    const ids = req.body;
+    let { type, ids } = req.body;
 
-    if (!Array.isArray(ids)) {
-      return res.status(400).json({ error: "ID harus array" });
+    if (!type || !Array.isArray(ids)) {
+      return res.status(400).json({
+        error: "Format { type:'IKR', ids:[] }"
+      });
     }
 
-    database = database.filter(d => !ids.includes(String(d.id)));
+    if (!database[type]) {
+      return res.json({ status: "ok", total: 0 });
+    }
+
+    database[type] = database[type].filter(
+      d => !ids.includes(String(d.id))
+    );
 
     res.json({
       status: "deleted",
-      total: database.length
+      type,
+      total: database[type].length
     });
 
   } catch (err) {
-    console.error("ERROR DELETE:", err);
-    res.status(500).json({ error: "Server error saat delete" });
+    console.error("DELETE ERROR:", err);
+    res.status(500).json({ error: "Gagal delete" });
   }
 });
 
 // ================= CLEAR =================
 app.post("/api/clear", (req, res) => {
-  database = [];
-  res.json({ status: "cleared" });
+  try {
+    let { type } = req.body;
+
+    if (!type) {
+      return res.status(400).json({ error: "Type wajib" });
+    }
+
+    database[type] = [];
+
+    res.json({
+      status: "cleared",
+      type
+    });
+
+  } catch (err) {
+    console.error("CLEAR ERROR:", err);
+    res.status(500).json({ error: "Gagal clear" });
+  }
 });
 
-// ================= ERROR HANDLER GLOBAL =================
+// ================= INFO DEBUG =================
+app.get("/api/info", (req, res) => {
+  res.json({
+    IKR: database.IKR.length,
+    MYREP: database.MYREP.length
+  });
+});
+
+// ================= ERROR GLOBAL =================
 app.use((err, req, res, next) => {
   console.error("GLOBAL ERROR:", err);
-  res.status(500).json({ error: "Terjadi error di server" });
+  res.status(500).json({ error: "Terjadi error server" });
 });
 
 // ================= START =================
 const PORT = process.env.PORT || 3000;
+
 app.listen(PORT, () => {
-  console.log("Server running on port " + PORT);
+  console.log("🚀 Server running on port " + PORT);
 });
